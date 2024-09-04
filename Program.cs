@@ -1,4 +1,20 @@
+using System.Text.Json.Serialization;
+using AboutBooksDemoProject.DataAccess;
+using AboutBooksDemoProject.Interfaces;
+using AboutBooksDemoProject.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Serilog;
+
 var builder = WebApplication.CreateBuilder(args);
+
+var logger = new LoggerConfiguration()
+             .ReadFrom.Configuration(builder.Configuration)
+             .Enrich.FromLogContext()
+             .Enrich.WithMachineName()
+             .Enrich.WithEnvironmentName()
+             .CreateLogger();
+builder.Logging.AddSerilog(logger, dispose: true);
 
 // Add services to the container.
 
@@ -6,6 +22,12 @@ builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.AddAutoMapper(typeof(MappingProfile));
+builder.Services.AddScoped<IBookService, BookService>();
+
+builder.Services.AddDbContext<AboutBooksContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("Database")));
 
 var app = builder.Build();
 
@@ -21,5 +43,11 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 
 app.MapControllers();
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetService<AboutBooksContext>();
+    db.Database.Migrate();
+}
 
 app.Run();
